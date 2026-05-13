@@ -1,0 +1,42 @@
+{
+	"name": "pi-bash-yield",
+	"version": "0.1.0",
+	"description": "Non-blocking bash for pi. Every command yields control back at a model-set check_in interval with a handle, partial output, and idle timing. The agent decides whether to continue waiting, send stdin, or kill.",
+	"type": "module",
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"pi",
+		"bash",
+		"shell",
+		"async"
+	],
+	"license": "MIT",
+	"author": "Ludvig Rhodin",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/lrhodin/pi-bash-yield.git"
+	},
+	"bugs": {
+		"url": "https://github.com/lrhodin/pi-bash-yield/issues"
+	},
+	"homepage": "https://github.com/lrhodin/pi-bash-yield#readme",
+	"engines": {
+		"node": ">=20.6.0"
+	},
+	"files": [
+		"extensions",
+		"README.md",
+		"LICENSE"
+	],
+	"pi": {
+		"extensions": [
+			"./extensions"
+		]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-agent-core": "*",
+		"@sinclair/typebox": "*"
+	}
+}
