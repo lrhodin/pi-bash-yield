@@ -58,8 +58,9 @@ Both stdout and stderr are tailed to ~50KB per stream. When truncated, the snaps
 
 ## Known limitations
 
-- **No PTY.** Stdin and stdout are pipes, not a terminal. Programs that demand a real TTY (`vim`, `htop`, `sudo` password prompts that insist on `/dev/tty`) won't work via `bash_input`. Line-based prompts (`read`, REPL prompts) do.
-- **No per-call `cwd`.** Inherits `process.cwd()` like the built-in.
+- **No PTY — use tmux instead.** Stdin and stdout are pipes, not a terminal. Programs that gate on `isatty()` or read from `/dev/tty` (`vim`, `htop`, `sudo` password prompts in most configs, `ssh` interactive auth) won't accept `bash_input` directly. For those, the `bash` tool description tells the agent to spawn them inside tmux (`tmux new-session -d -s pi-tmux-<name> '<cmd>'`, then `send-keys` / `capture-pane` / `kill-session` via further `bash` calls). This is the intended design — tmux already provides a real PTY, the user can `tmux attach` to watch live, and there's no native-module dependency.
+- **Line-based stdin works directly.** `read x`, REPL prompts, anything that reads from stdin (not `/dev/tty`) is handled by `bash_input` without tmux.
+- **No per-call `cwd`.** Inherits `process.cwd()` like the built-in. Use `cd /path && cmd` inline.
 - **Last-registered wins.** Don't stack this with another extension that also overrides `bash`.
 
 ## When you want this
@@ -72,7 +73,7 @@ Install if you:
 
 Don't install if you:
 
-- Run mostly interactive full-screen programs (`vim`, `htop`, `sudo` with TTY-only prompts). No PTY, see *Known limitations*.
+- Run mostly interactive full-screen programs (`vim`, `htop`). The tmux fallback works for *sending input* to TTY-gated programs like `sudo` and `ssh`, but you wouldn't drive a full-screen editor from an agent loop anyway.
 - Want a process-management UI (dock, log overlay, log watches). For that, see [`@aliou/pi-processes`](https://www.npmjs.com/package/@aliou/pi-processes) — different shape (separate `process` tool, dock, watches), complementary if you need both backgrounded daemons and bounded synchronous commands.
 
 ## Worked example

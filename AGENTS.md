@@ -69,16 +69,30 @@ rounds of trimming. Rules:
 
 ## TTY / PTY
 
-We use plain pipes for stdio, not a PTY. This works for line-based stdin
-(REPL prompts, `read x`, password prompts that don't insist on `/dev/tty`).
-It does *not* work for programs that gate on `isatty()`, demand a real
-controlling terminal, or expect ANSI control sequences (`vim`, `htop`,
-`sudo` in some configurations, full-screen TUIs).
+We use plain pipes for stdio, not a PTY. This is a deliberate design
+choice, not a feature gap.
 
-If `bash_input` for real password prompts becomes a recurring problem,
-the v2 path is `node-pty`. Don't introduce it until there's a concrete
-failing case — it adds a native module dependency and complicates the
-spawn path significantly.
+Pipes give us:
+- Separate stdout / stderr streams (useful diagnostic signal).
+- No ANSI escape noise in output.
+- No native module dependency.
+- Bounded, well-defined behavior for the 99% case.
+
+They don't work for programs that gate on `isatty()` or demand a real
+controlling terminal (`vim`, `htop`, `sudo` password prompts that read
+from `/dev/tty`, ssh interactive auth). The solution for those is
+documented in the `bash` tool description: spawn them inside tmux via
+the same `bash` tool. tmux is already on the system (it's also how the
+subagent skill works), provides a real PTY, and lets the user attach
+and watch live.
+
+Do not add a PTY mode (`tty: true`, `node-pty`, etc.) to this
+extension. The tmux fallback covers the same surface with no native
+dependency, no second code path, no echo-suppression problem, and the
+additional benefit that the user can `tmux attach -t pi-tmux-<name>`
+to see what's happening. If you find yourself wanting `node-pty` here,
+stop and write down the specific scenario it solves that tmux does
+not — then revisit.
 
 ## Shell
 
@@ -128,8 +142,10 @@ directly without touching the install.
 
 ## Future work (not yet justified)
 
-- PTY support (only if real-world failures accumulate).
 - Per-call `cwd` parameter (only if the inline `cd` pattern proves awkward).
-- Handle persistence across pi restarts (probably not worth the complexity).
 - A `bash_list` tool to enumerate live handles (only if the model gets
   confused about which handles exist).
+
+Explicitly *not* future work: PTY support. See the TTY / PTY section.
+The tmux fallback documented in the `bash` tool description is the
+intended solution and is sufficient.
