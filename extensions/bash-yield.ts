@@ -337,7 +337,8 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Execute a shell command. Non-blocking: returns at min(check_in, exit). If the command exits before check_in, you get final output. " +
 			"If check_in fires first, you get a handle plus current stdout/stderr tails and idle status — use bash_continue/bash_input/bash_kill to manage it. " +
-			"Default check_in is " + DEFAULT_CHECK_IN_SEC + "s. Output is tailed to ~50KB per stream; full log path is included. " +
+			"Default check_in is " + DEFAULT_CHECK_IN_SEC + "s. If you expect the command to take longer than the default, pass a higher check_in upfront — no penalty, the command keeps running regardless, and you avoid pinging back every " + DEFAULT_CHECK_IN_SEC + "s. " +
+			"Output is tailed to ~50KB per stream; full log path is included. " +
 			"For commands that require a real TTY (sudo password prompts, ssh interactive auth, vim, htop), bash_input via pipe will not work — run them inside tmux instead: " +
 			"`tmux new-session -d -s pi-tmux-<name> '<cmd>'`, then `tmux send-keys -t pi-tmux-<name> '<input>' Enter` and `tmux capture-pane -t pi-tmux-<name> -p` via subsequent bash calls. Always `tmux kill-session -t pi-tmux-<name>` when done.",
 		parameters: bashParams,
@@ -368,7 +369,7 @@ export default function (pi: ExtensionAPI) {
 		name: "bash_input",
 		label: "Bash input",
 		description:
-			"Write text to the stdin of a running bash handle. Use this when a command is prompting for input (password, y/n, REPL). Returns immediately with current status — call bash_continue afterwards to wait for new output.",
+			"Write text to the stdin of a running bash handle. Use this when a command is prompting for input (password, y/n, REPL). Returns immediately with a short write confirmation — call bash_continue afterwards to see the process's response.",
 		parameters: inputParams,
 		async execute(_toolCallId, params) {
 			const p = procs.get(params.handle);
@@ -385,6 +386,7 @@ export default function (pi: ExtensionAPI) {
 					details: {},
 				};
 			}
+			const bytes = Buffer.byteLength(params.text, "utf-8");
 			try {
 				p.child.stdin.write(params.text);
 				if (params.close_stdin) {
@@ -397,7 +399,11 @@ export default function (pi: ExtensionAPI) {
 					details: {},
 				};
 			}
-			return snapshot(p);
+			const closedNote = params.close_stdin ? " (stdin closed)" : "";
+			return {
+				content: [{ type: "text", text: `wrote ${bytes}B to ${p.id} stdin${closedNote}` }],
+				details: {},
+			};
 		},
 	});
 

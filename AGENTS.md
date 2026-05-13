@@ -47,6 +47,16 @@ rounds of trimming. Rules:
   paths when the entire stream fits.
 - **Don't restate tool descriptions.** No "Choices: bash_continue, …"
   footer. The model already has the tool list.
+- **`bash_input` returns a short write confirmation, not a snapshot**
+  (since 0.1.3). Right after writing to stdin, the tail hasn't changed
+  (the input we wrote isn't echoed over a pipe), so a full snapshot
+  would be ~120 tokens of duplicated state plus the misleading
+  appearance that input wasn't accepted (the prompt line is still
+  visible). One-line `wrote NB to bash-X stdin` is shorter and
+  truthful. The agent follows with `bash_continue` to read the
+  response — explicit in the tool description. Exception: errors
+  (handle not found, process already exited, stdin closed) still
+  render as errors.
 
 ## Schema backward-compat
 
@@ -104,8 +114,9 @@ so aliases may not load — match the built-in pi behavior here).
 ## Tail buffer strategy
 
 Each stream gets a rolling tail capped at 50KB (`TAIL_MAX_BYTES`). The
-full output is also written to `/tmp/pi-bash-checkin-<pid>/bash-N.log`
-so the agent can read more via the regular `read` tool if needed.
+full output is also written to `os.tmpdir()/pi-bash-checkin-<pid>/bash-N.log`
+(`/tmp/...` on Linux, `$TMPDIR/...` on macOS) so the agent can read more
+via the regular `read` tool if needed.
 
 The tail is the *last* 50KB seen, not the last 50KB since the last
 check-in. This is deliberate — the agent should see a consistent

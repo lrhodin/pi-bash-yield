@@ -2,6 +2,10 @@
 
 Non-blocking bash for [pi](https://github.com/earendil-works/pi). Every command yields control back at a model-set `check_in` interval with a handle, partial output, and idle timing. The agent decides whether to continue waiting, send stdin, or kill.
 
+## Why I built this
+
+pi kept getting stuck on commands I hadn't expected to be long-running. The hard case isn't the build that takes ten minutes — that one you can mark. It's the 2-second command that's silently waiting on something, with no observability and no way out except Esc. The check-in shape makes the *unanticipated* long-running case the same shape as the expected one: every command is bounded, every state is visible, the agent decides.
+
 ## Why
 
 pi's built-in `bash` tool blocks the agent loop until the child process exits. There's no default timeout, so a hung command (waiting on stdin, stuck in a loop, network stall) stops the agent indefinitely until the user hits Esc. The pi maintainers have closed this twice as wontfix and recommend the model set a `timeout` per call — but a timeout that *kills* on expiry is the wrong shape. Most "long-running" commands aren't long because they're doing work; they're long because something went wrong, and the agent needs to *see* what's happening to react.
@@ -46,7 +50,7 @@ stdout:
 done
 ```
 
-Both stdout and stderr are tailed to ~50KB per stream. When truncated, the snapshot links the full log file in `/tmp/pi-bash-checkin-<pid>/`. Empty streams are omitted from the render.
+Both stdout and stderr are tailed to ~50KB per stream. When truncated, the snapshot links the full log file in the OS temp dir (`os.tmpdir()/pi-bash-checkin-<pid>/`, e.g. `/tmp/...` on Linux, `$TMPDIR/...` on macOS). Empty streams are omitted from the render.
 
 ## Design notes
 
