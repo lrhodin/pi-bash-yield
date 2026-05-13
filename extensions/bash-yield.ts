@@ -159,6 +159,114 @@ function snapshot(p: ManagedProcess): AgentToolResult {
 	return { content: [{ type: "text", text }], details: {} };
 }
 
+const FIND_DISABLED_MESSAGE = "find is disabled, use fd";
+
+function disabledFindResult(): AgentToolResult {
+	return { content: [{ type: "text", text: FIND_DISABLED_MESSAGE }], details: {} };
+}
+
+function shellWordsAndOperators(command: string): string[] {
+	const tokens: string[] = [];
+	let i = 0;
+	while (i < command.length) {
+		const ch = command[i];
+		if (/\s/.test(ch)) {
+			if (ch === "\n") tokens.push("\n");
+			i++;
+			continue;
+		}
+		if (ch === "#") {
+			while (i < command.length && command[i] !== "\n") i++;
+			continue;
+		}
+		if (";|&(){}".includes(ch)) {
+			const next = command[i + 1];
+			if ((ch === "|" || ch === "&") && next === ch) {
+				tokens.push(ch + next);
+				i += 2;
+			} else {
+				tokens.push(ch);
+				i++;
+			}
+			continue;
+		}
+
+		let word = "";
+		while (i < command.length) {
+			const c = command[i];
+			if (/\s/.test(c) || ";|&(){}".includes(c)) break;
+			if (c === "'") {
+				i++;
+				while (i < command.length && command[i] !== "'") word += command[i++];
+				if (command[i] === "'") i++;
+				continue;
+			}
+			if (c === '"') {
+				i++;
+				while (i < command.length && command[i] !== '"') {
+					if (command[i] === "\\" && i + 1 < command.length) i++;
+					word += command[i++];
+				}
+				if (command[i] === '"') i++;
+				continue;
+			}
+			if (c === "\\" && i + 1 < command.length) {
+				word += command[i + 1];
+				i += 2;
+				continue;
+			}
+			word += c;
+			i++;
+		}
+		if (word) tokens.push(word);
+	}
+	return tokens;
+}
+
+function basenameOfCommandToken(token: string): string {
+	const normalized = token.replace(/\/+$/, "");
+	return normalized.slice(normalized.lastIndexOf("/") + 1);
+}
+
+function isAssignmentWord(token: string): boolean {
+	return /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(token);
+}
+
+function commandUsesDisabledFind(command: string): boolean {
+	let expectCommand = true;
+	let scanningEnvArgs = false;
+	for (const token of shellWordsAndOperators(command)) {
+		if ([";", "|", "||", "&", "&&", "(", "{", "\n"].includes(token)) {
+			expectCommand = true;
+			scanningEnvArgs = false;
+			continue;
+		}
+		if ([")", "}"].includes(token)) {
+			expectCommand = false;
+			scanningEnvArgs = false;
+			continue;
+		}
+		if (!expectCommand) continue;
+		if (isAssignmentWord(token)) continue;
+		if (scanningEnvArgs && (token.startsWith("-") || isAssignmentWord(token))) continue;
+
+		const name = basenameOfCommandToken(token);
+		if (name === "find") return true;
+		if (["command", "sudo", "time", "noglob"].includes(name)) continue;
+		if (name === "env") {
+			scanningEnvArgs = true;
+			continue;
+		}
+		if (["if", "then", "elif", "else", "do", "while", "until", "!"].includes(name)) {
+			expectCommand = true;
+			continue;
+		}
+		expectCommand = false;
+		scanningEnvArgs = false;
+	}
+	return false;
+}
+
 function spawnManaged(command: string, cwd: string): ManagedProcess {
 	const id = `bash-${nextId++}`;
 	const logPath = join(tmpRoot, `${id}.log`);
@@ -338,11 +446,13 @@ export default function (pi: ExtensionAPI) {
 			"Execute a shell command. Non-blocking: returns at min(check_in, exit). If the command exits before check_in, you get final output. " +
 			"If check_in fires first, you get a handle plus current stdout/stderr tails and idle status — use bash_continue/bash_input/bash_kill to manage it. " +
 			"Default check_in is " + DEFAULT_CHECK_IN_SEC + "s. If you expect the command to take longer than the default, pass a higher check_in upfront — no penalty, the command keeps running regardless, and you avoid pinging back every " + DEFAULT_CHECK_IN_SEC + "s. " +
+			"The find command is disabled because it is incredibly slow and should never be used; use fd instead. " +
 			"Output is tailed to ~50KB per stream; full log path is included. " +
 			"For commands that require a real TTY (sudo password prompts, ssh interactive auth, vim, htop), bash_input via pipe will not work — run them inside tmux instead: " +
 			"`tmux new-session -d -s pi-tmux-<name> '<cmd>'`, then `tmux send-keys -t pi-tmux-<name> '<input>' Enter` and `tmux capture-pane -t pi-tmux-<name> -p` via subsequent bash calls. Always `tmux kill-session -t pi-tmux-<name>` when done.",
 		parameters: bashParams,
 		async execute(_toolCallId, params, signal) {
+			if (commandUsesDisabledFind(params.command)) return disabledFindResult();
 			const checkIn = clampCheckIn(params.check_in ?? params.timeout);
 			const cwd = process.cwd();
 			const p = spawnManaged(params.command, cwd);

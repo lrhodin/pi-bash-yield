@@ -31,6 +31,16 @@ Then `/reload` or restart pi. The built-in `bash` tool is replaced; uninstalling
 
 `check_in` is bounded to 1–600 seconds.
 
+## `find` is disabled
+
+The bash tool rejects shell commands that invoke `find` and returns:
+
+```text
+find is disabled, use fd
+```
+
+Use `fd` instead. `find` can take minutes to do filesystem scans that `fd` finishes in seconds.
+
 ## Output shape
 
 ```
