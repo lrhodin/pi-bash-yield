@@ -62,6 +62,66 @@ Both stdout and stderr are tailed to ~50KB per stream. When truncated, the snaps
 - **No per-call `cwd`.** Inherits `process.cwd()` like the built-in.
 - **Last-registered wins.** Don't stack this with another extension that also overrides `bash`.
 
+## When you want this
+
+Install if you:
+
+- Have hit the unbounded-bash hang in pi where a command waits on stdin or otherwise stalls and the only escape is Esc.
+- Want the agent to see and react to stuck commands instead of killing them blindly.
+- Want every shell call to behave the same shape — no separate "long-running" mode the agent has to opt into.
+
+Don't install if you:
+
+- Run mostly interactive full-screen programs (`vim`, `htop`, `sudo` with TTY-only prompts). No PTY, see *Known limitations*.
+- Want a process-management UI (dock, log overlay, log watches). For that, see [`@aliou/pi-processes`](https://www.npmjs.com/package/@aliou/pi-processes) — different shape (separate `process` tool, dock, watches), complementary if you need both backgrounded daemons and bounded synchronous commands.
+
+## Worked example
+
+Agent runs an install that prompts for a sudo password:
+
+```
+> bash("sudo apt install foo", check_in=5)
+running handle=bash-1 elapsed=5.0s last_output=4.8s ago
+
+stderr:
+[sudo] password for ludvig:
+```
+
+Agent recognizes the prompt and reacts:
+
+```
+> bash_input("bash-1", "hunter2\n")
+running handle=bash-1 elapsed=5.1s last_output=5.1s ago
+
+stderr:
+[sudo] password for ludvig:
+
+> bash_continue("bash-1", check_in=30)
+exited code=0 elapsed=18.4s
+
+stdout:
+Reading package lists... Done
+Building dependency tree... Done
+foo is already the newest version (1.2.3).
+```
+
+Or a hung command that the agent decides to abandon:
+
+```
+> bash("curl https://broken-endpoint/", check_in=5)
+running handle=bash-2 elapsed=5.0s last_output=5.0s ago
+(no output yet)
+
+> bash_continue("bash-2", check_in=10)
+running handle=bash-2 elapsed=15.0s last_output=15.0s ago
+(no output yet)
+
+> bash_kill("bash-2")
+exited code=(none) signal=SIGTERM elapsed=15.4s
+```
+
+In both cases the agent loop never blocks. The model sees state, decides next step, moves on.
+
 ## License
 
 MIT
