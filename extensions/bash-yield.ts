@@ -353,7 +353,8 @@ export default function (pi: ExtensionAPI) {
 		name: "bash_continue",
 		label: "Bash continue",
 		description:
-			"Continue waiting on a running bash handle. Returns at min(check_in, exit). Use this when bash returned status=running and you want to wait more.",
+			"Continue waiting on a running bash handle. Returns at min(check_in, exit). Use this when bash returned status=running and you want to wait more. " +
+			"Override check_in freely — if you know the command needs a minute, pass check_in=60 instead of popping back every 10s. There's no penalty for long check_ins because the command keeps running regardless; you just pay one tool call's latency at the end.",
 		parameters: continueParams,
 		async execute(_toolCallId, params, signal) {
 			const p = procs.get(params.handle);
