@@ -337,7 +337,9 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Execute a shell command. Non-blocking: returns at min(check_in, exit). If the command exits before check_in, you get final output. " +
 			"If check_in fires first, you get a handle plus current stdout/stderr tails and idle status — use bash_continue/bash_input/bash_kill to manage it. " +
-			"Default check_in is " + DEFAULT_CHECK_IN_SEC + "s. Output is tailed to ~50KB per stream; full log path is included.",
+			"Default check_in is " + DEFAULT_CHECK_IN_SEC + "s. Output is tailed to ~50KB per stream; full log path is included. " +
+			"For commands that require a real TTY (sudo password prompts, ssh interactive auth, vim, htop), bash_input via pipe will not work — run them inside tmux instead: " +
+			"`tmux new-session -d -s pi-tmux-<name> '<cmd>'`, then `tmux send-keys -t pi-tmux-<name> '<input>' Enter` and `tmux capture-pane -t pi-tmux-<name> -p` via subsequent bash calls. Always `tmux kill-session -t pi-tmux-<name>` when done.",
 		parameters: bashParams,
 		async execute(_toolCallId, params, signal) {
 			const checkIn = clampCheckIn(params.check_in ?? params.timeout);
