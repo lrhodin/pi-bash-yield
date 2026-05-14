@@ -31,15 +31,15 @@ Then `/reload` or restart pi. The built-in `bash` tool is replaced; uninstalling
 
 `check_in` is bounded to 1–600 seconds.
 
-## `find` is disabled
+## Use `fd`, not `find`
 
-The bash tool rejects shell commands that invoke `find` and returns:
+The bash tool description tells agents not to use `find`: use `fd` instead. `find` can take minutes to do filesystem scans that `fd` finishes in seconds.
+
+This package does not hard-block `find` inside the bash tool. If the optional PATH shim is installed, invoking `find` prints this message to both stdout and stderr and exits non-zero:
 
 ```text
 find is disabled, use fd
 ```
-
-Use `fd` instead. `find` can take minutes to do filesystem scans that `fd` finishes in seconds.
 
 ## Output shape
 
